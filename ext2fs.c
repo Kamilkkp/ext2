@@ -400,16 +400,19 @@ int ext2_readdir(uint32_t ino, uint32_t *off_p, ext2_dirent_t *de) {
   /* TODO */
   ext2_inode_t inode;
   ext2_inode_read(ino, &inode);
-  if (inode.i_size <= *off_p) {
-    debug("ext2_readdir (%d, %d) - end, no more entries\n", ino, *off_p);
-    return 0;
+  uint32_t inode_found = 0;
+  while (!inode_found) {
+    if (inode.i_size <= *off_p) {
+      debug("ext2_readdir (%d, %d) - end, no more entries\n", ino, *off_p);
+      return 0;
+    }
+    ext2_read(ino, de, *off_p, 8);
+    inode_found = de->de_ino;
+    size_t name_len = de->de_namelen;
+    ext2_read(ino, de->de_name, *off_p + 8, name_len);
+    de->de_name[name_len] = '\0';
+    *off_p = *off_p + de->de_reclen;
   }
-  ext2_read(ino, de, *off_p, 8);
-  uint8_t name_len = de->de_namelen;
-  ext2_read(ino, de->de_name, *off_p + 8, name_len);
-  de->de_name[name_len] = '\0';
-  *off_p = *off_p + de->de_reclen;
-
   debug("ext2_readdir (%d, %d) -> %s - positive end\n", ino, *off_p,
         de->de_name);
   return 1;
