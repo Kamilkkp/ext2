@@ -144,9 +144,7 @@ static blk_t *blk_alloc(void) {
  * `idx`. When `ino` is zero the buffer refers to filesystem metadata (i.e.
  * superblock, block group descriptors, block & i-node bitmap, etc.) and `off`
  * offset is given from the start of block device. */
-
 static blk_t *blk_get(uint32_t ino, uint32_t idx) {
-  debug("blk_get ino=%d, idx=%d\n", ino, idx);
   blk_list_t *bucket = &buckets[BUCKET(ino, idx)];
   blk_t *blk = NULL;
 
@@ -193,9 +191,9 @@ static blk_t *blk_get(uint32_t ino, uint32_t idx) {
  * reused to cache another block. The buffer is put at the beginning of LRU list
  * of unused blocks. */
 static void blk_put(blk_t *blk) {
-  if (--blk->b_refcnt > 0) {
+  if (--blk->b_refcnt > 0)
     return;
-  }
+
   TAILQ_INSERT_HEAD(&lrulst, blk, b_link);
 }
 
@@ -392,8 +390,7 @@ int ext2_readlink(uint32_t ino, char *buf, size_t buflen) {
   /* Check if it's a symlink and read it. */
 
   /* TODO */
-  uint32_t type = EXT2_IFMT & inode.i_mode;
-  if (EXT2_IFLNK != type)
+  if ((EXT2_IFLNK & inode.i_mode) == 0)
     return EINVAL;
 
   if (inode.i_size > buflen)
