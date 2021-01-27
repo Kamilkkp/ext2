@@ -243,8 +243,6 @@ int ext2_inode_used(uint32_t ino) {
  * Returns 0 on success. If i-node is not allocated returns ENOENT. */
 static int ext2_inode_read(off_t ino, ext2_inode_t *inode) {
   /* TODO */
-  if (ino == 0)
-    return ENOENT;
   if (!ext2_inode_used(ino))
     return ENOENT;
   uint32_t index_group = (ino - 1) / inodes_per_group;
