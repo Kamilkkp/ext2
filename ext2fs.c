@@ -315,19 +315,19 @@ long ext2_blkaddr_read(uint32_t ino, uint32_t blkidx) {
  * WARNING: This function assumes that `ino` i-node pointer is valid! */
 int ext2_read(uint32_t ino, void *data, size_t pos, size_t len) {
   /* TODO */
-  ext2_inode_t inode;
+  if (ino != 0) {
+    ext2_inode_t inode;
+    ext2_inode_read(ino, &inode);
+    if (ino != 0 && pos + len > inode.i_size)
+      return EINVAL;
+  }
   void *src = NULL;
   blk_t *block = NULL;
   uint32_t read_bytes;
-  if (ino != 0)
-    ext2_inode_read(ino, &inode);
   while (len > 0) {
     uint32_t idx = pos / BLKSIZE;
     uint32_t position_in_current_block = pos % BLKSIZE;
-    if (ino != 0 && pos + len > inode.i_size)
-      return EINVAL;
-    else
-      block = blk_get(ino, idx);
+    block = blk_get(ino, idx);
 
     if (block != BLK_ZERO)
       src = (block->b_data) + position_in_current_block;
@@ -336,16 +336,15 @@ int ext2_read(uint32_t ino, void *data, size_t pos, size_t len) {
     else
       read_bytes = len;
 
-    if (block != BLK_ZERO)
+    if (block != BLK_ZERO) {
       memcpy(data, src, read_bytes);
-    else
+      blk_put(block);
+    } else
       memset(data, 0, len);
 
     len -= read_bytes;
     data += read_bytes;
     pos += read_bytes;
-    if (block != BLK_ZERO)
-      blk_put(block);
   }
   return 0;
 }
