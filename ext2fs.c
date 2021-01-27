@@ -329,14 +329,9 @@ int ext2_read(uint32_t ino, void *data, size_t pos, size_t len) {
     uint32_t position_in_current_block = pos % BLKSIZE;
     block = blk_get(ino, idx);
 
-    if (block != BLK_ZERO)
-      src = (block->b_data) + position_in_current_block;
-    if (position_in_current_block + len > BLKSIZE)
-      read_bytes = BLKSIZE - position_in_current_block;
-    else
-      read_bytes = len;
-
+    read_bytes = min(BLKSIZE - position_in_current_block, len);
     if (block != BLK_ZERO) {
+      src = (block->b_data) + position_in_current_block;
       memcpy(data, src, read_bytes);
       blk_put(block);
     } else
