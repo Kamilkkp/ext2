@@ -243,7 +243,8 @@ int ext2_inode_used(uint32_t ino) {
  * Returns 0 on success. If i-node is not allocated returns ENOENT. */
 static int ext2_inode_read(off_t ino, ext2_inode_t *inode) {
   /* TODO */
-  if (!ext2_inode_used(ino))
+  int is_inode_used;
+  if ((is_inode_used = ext2_inode_used(ino)) == 0 || is_inode_used == EINVAL)
     return ENOENT;
   uint32_t index_group = (ino - 1) / inodes_per_group;
   ext2_groupdesc_t group_descriptor = group_desc[index_group];
@@ -335,7 +336,7 @@ int ext2_read(uint32_t ino, void *data, size_t pos, size_t len) {
       memcpy(data, src, read_bytes);
       blk_put(block);
     } else
-      memset(data, 0, len);
+      memset(data, 0, read_bytes);
 
     len -= read_bytes;
     data += read_bytes;
