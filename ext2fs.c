@@ -280,30 +280,36 @@ long ext2_blkaddr_read(uint32_t ino, uint32_t blkidx) {
   /* Read direct pointers or pointers from indirect blocks. */
 
   /* TODO */
-  if (blkidx < 12) {
+  if (blkidx < EXT2_NDADDR) {
     return inode.i_blocks[blkidx];
-  } else if (blkidx < BLK_POINTERS + 12) {
-    return ext2_blkptr_read(inode.i_blocks[12], blkidx - 12);
-  } else if (blkidx < BLK_POINTERS * BLK_POINTERS + BLK_POINTERS + 12) {
-    uint32_t indirect_block = ext2_blkptr_read(
-      inode.i_blocks[13], (blkidx - BLK_POINTERS - 12) / BLK_POINTERS);
-    return ext2_blkptr_read(indirect_block,
-                            (blkidx - BLK_POINTERS - 12) % BLK_POINTERS);
+  } else if (blkidx < BLK_POINTERS + EXT2_NDADDR) {
+    return ext2_blkptr_read(inode.i_blocks[EXT2_NDADDR], blkidx - EXT2_NDADDR);
+  } else if (blkidx <
+             BLK_POINTERS * BLK_POINTERS + BLK_POINTERS + EXT2_NDADDR) {
+    uint32_t indirect_block =
+      ext2_blkptr_read(inode.i_blocks[EXT2_NDADDR + 1],
+                       (blkidx - BLK_POINTERS - EXT2_NDADDR) / BLK_POINTERS);
+    return ext2_blkptr_read(
+      indirect_block, (blkidx - BLK_POINTERS - EXT2_NDADDR) % BLK_POINTERS);
   } else if (blkidx < BLK_POINTERS * BLK_POINTERS * BLK_POINTERS +
-                        BLK_POINTERS * BLK_POINTERS + BLK_POINTERS + 12) {
+                        BLK_POINTERS * BLK_POINTERS + BLK_POINTERS +
+                        EXT2_NDADDR) {
     uint32_t index =
-      (blkidx - BLK_POINTERS * BLK_POINTERS - BLK_POINTERS - 12) /
+      (blkidx - BLK_POINTERS * BLK_POINTERS - BLK_POINTERS - EXT2_NDADDR) /
       (BLK_POINTERS * BLK_POINTERS);
-    uint32_t indirect_block = ext2_blkptr_read(inode.i_blocks[14], index);
-    uint32_t deeper_index = (blkidx - index * BLK_POINTERS * BLK_POINTERS -
-                             BLK_POINTERS * BLK_POINTERS - BLK_POINTERS - 12) /
-                            BLK_POINTERS;
+    uint32_t indirect_block =
+      ext2_blkptr_read(inode.i_blocks[EXT2_NDADDR + 2], index);
+    uint32_t deeper_index =
+      (blkidx - index * BLK_POINTERS * BLK_POINTERS -
+       BLK_POINTERS * BLK_POINTERS - BLK_POINTERS - EXT2_NDADDR) /
+      BLK_POINTERS;
     uint32_t deepest_indirect_block =
       ext2_blkptr_read(indirect_block, deeper_index);
-    uint32_t deepest_index = (blkidx - index * BLK_POINTERS * BLK_POINTERS -
-                              BLK_POINTERS * BLK_POINTERS -
-                              deeper_index * BLK_POINTERS - BLK_POINTERS - 12) %
-                             BLK_POINTERS;
+    uint32_t deepest_index =
+      (blkidx - index * BLK_POINTERS * BLK_POINTERS -
+       BLK_POINTERS * BLK_POINTERS - deeper_index * BLK_POINTERS -
+       BLK_POINTERS - EXT2_NDADDR) %
+      BLK_POINTERS;
     return ext2_blkptr_read(deepest_indirect_block, deepest_index);
   } else
     return -1;
@@ -326,13 +332,13 @@ int ext2_read(uint32_t ino, void *data, size_t pos, size_t len) {
   blk_t *block = NULL;
   uint32_t read_bytes;
   while (len > 0) {
-    uint32_t idx = pos / BLKSIZE;
-    uint32_t position_in_current_block = pos % BLKSIZE;
-    block = blk_get(ino, idx);
+    uint32_t idx_curr_block = pos / BLKSIZE;
+    uint32_t pos_in_curr_block = pos % BLKSIZE;
+    block = blk_get(ino, idx_curr_block);
 
-    read_bytes = min(BLKSIZE - position_in_current_block, len);
+    read_bytes = min(BLKSIZE - pos_in_curr_block, len);
     if (block != BLK_ZERO) {
-      src = (block->b_data) + position_in_current_block;
+      src = (block->b_data) + pos_in_curr_block;
       memcpy(data, src, read_bytes);
       blk_put(block);
     } else
@@ -361,9 +367,9 @@ int ext2_readdir(uint32_t ino, uint32_t *off_p, ext2_dirent_t *de) {
     if (inode.i_size <= *off_p)
       return 0;
 
-    ext2_read(ino, de, *off_p, 8);
+    ext2_read(ino, de, *off_p, de_name_offset);
     inode_found = de->de_ino;
-    ext2_read(ino, de->de_name, *off_p + 8, de->de_namelen);
+    ext2_read(ino, de->de_name, *off_p + de_name_offset, de->de_namelen);
     de->de_name[de->de_namelen] = '\0';
     *off_p = *off_p + de->de_reclen;
   }
@@ -389,7 +395,7 @@ int ext2_readlink(uint32_t ino, char *buf, size_t buflen) {
   if (inode.i_size > buflen)
     return EINVAL;
 
-  if (inode.i_size < 60) {
+  if (inode.i_size < EXT2_MAXSYMLINKLEN) {
     memcpy(buf, inode.i_blocks, inode.i_size);
     buf[inode.i_size] = '\0';
     return 0;
